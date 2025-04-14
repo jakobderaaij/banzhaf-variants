@@ -3,6 +3,7 @@ from helpers import *
 from config import EXACT, STRICT
 from find_all_wvgs import to_function, get_equivalent_players
 from storage.all_wvgs import all_wvgs as ALL_WVGS
+import tqdm
 ALL_INDICES = dict()
 
 CORRECT_NUMBERS_AT_HALF = {1:1, 2:2, 3:4, 4:12, 5:81, 6:1684, 7:123565} # from Enumeration of Threshold Functions of Eight Variables by MUROGA, TSUBOI, BAUGH
@@ -48,7 +49,7 @@ def get_maximal_loosing_coalitions(loosing):
 
 if __name__ == "__main__":
     LOWEST_N = 1
-    HIGHEST_N = 6
+    HIGHEST_N = 7
     QUOTA_RANGE = [i/sp.Rational(20) for i in range(10,20)] + [2/sp.Rational(3)]
     N_RANGE = list(range(LOWEST_N, HIGHEST_N + 1))
     all_wvgs_at_quota = dict()
@@ -64,7 +65,7 @@ if __name__ == "__main__":
             if n not in ALL_WVGS: raise NotImplementedError
             wvgs = ALL_WVGS[n]
             
-            for function, (weights_here, quota_here) in wvgs.items():
+            for function, (weights_here, quota_here) in tqdm.tqdm(wvgs.items()):
                 if not EXACT: raise NotImplementedError
 
                 # Check if this function is attainable at this quota:
@@ -146,6 +147,7 @@ if __name__ == "__main__":
                         for equivalence_set in equivalent_players.values():
                             multiplicacy= multiplicacy/sp.Rational(Factorials[len(equivalence_set) + 1]) 
                         number_of_function_with_multiplicity += multiplicacy
+            # print(number_of_function_with_multiplicity, CORRECT_NUMBERS_AT_HALF[n])
             assert number_of_function_with_multiplicity == CORRECT_NUMBERS_AT_HALF[n]
 
     # Write all_wvgs_at_quota to file

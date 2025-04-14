@@ -1,9 +1,11 @@
 from helpers import *
 from config import EXACT, STRICT
 from storage.all_wvgs import all_wvgs
+import tqdm
 
 ALL_INDICES = dict()
 CORRECT_NUMBERS = {0:2, 1:3, 2:6, 3:20, 4:150, 5:3_287, 6:244_158, 7:66_291_591} # from Enumeration of Threshold Functions of Eight Variables by MUROGA, TSUBOI, BAUGH
+
 
 # I found this too late, would have been more useful
 # CORRECT_NUMBERS_WITHOUT_PERMUTATIONS = {0:2, 1:3, 2:5, 3:10, 4:27, 5:119, 6:1_113, 7:29_375} # from Enumeration of Threshold Functions of Eight Variables by MUROGA, TSUBOI, BAUGH
@@ -75,7 +77,7 @@ if __name__ == '__main__':
         possible_functions_with_wvs = set()
         number_of_function_with_multiplicity = 0
         seen = set()
-        for weights in all_ordered_wvgs(n, MAXIMUM_WEIGHTS[n]): 
+        for weights in tqdm.tqdm(all_ordered_wvgs(n, MAXIMUM_WEIGHTS[n])): 
             if sum(weights)==0: continue
             for q in range(sum(weights)):
                 quota = q + 0.5
