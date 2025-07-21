@@ -49,8 +49,8 @@ def get_maximal_loosing_coalitions(loosing):
 
 if __name__ == "__main__":
     LOWEST_N = 1
-    HIGHEST_N = 7
-    QUOTA_RANGE = [i/sp.Rational(20) for i in range(10,20)] + [2/sp.Rational(3)]
+    HIGHEST_N = 6
+    QUOTA_RANGE = [i/sp.Rational(20) for i in range(1,20)] + [2/sp.Rational(3)]
     N_RANGE = list(range(LOWEST_N, HIGHEST_N + 1))
     all_wvgs_at_quota = dict()
     for n in N_RANGE:

@@ -2,6 +2,9 @@ import math
 import sympy as sp
 import numpy as np
 from config import EXACT, STRICT
+import tqdm
+
+ALL_INDICES = dict()
 
 def powerset(list_):
     if len(list_) == 0: return [[]]
@@ -23,7 +26,22 @@ def round_vector(vector, digits = 3):
 def dot_product(vector, vector2):
     return sum([ele1 * ele2 for ele1,ele2 in zip(vector,vector2)])
 
+def prod(list_):
+    res = 1
+    for ele in list_:
+        res *= ele
+    return res
+
+def coalition_prob(coalition, probs):
+    ''' Coalition is set/list of indices'''
+    return prod([probs[i] for i in coalition])
+
+def mean(vector, exact = EXACT):
+    if exact: return sum(vector)/sp.Rational(len(vector))
+    return sum(vector)/len(vector)
+
 def distance(vec1, vec2, p = 1, exact = EXACT):
+    if p == 1: return sum(abs(ele1-ele2) for ele1, ele2 in zip(vec1, vec2))
     if exact:
         distances = [abs(sp.Rational(ele1)-sp.Rational(ele2)) for ele1, ele2 in zip(vec1, vec2)]
         p = sp.Rational(p)
@@ -45,6 +63,22 @@ def compare_print(benchmark, colored):
         if i < len(benchmark)-1:
             print(", ", end="")
     print(']')
+
+def to_function(wvg, quota, strict = STRICT):
+    '''Convert a WVG to a boolean function (as string)'''
+    output = ""
+    n = len(wvg)
+    if n not in ALL_INDICES: ALL_INDICES[n] = powerset(list(range(n)))
+    for indices in ALL_INDICES[n]:
+        if strict:
+            if sum([ele for j, ele in enumerate(wvg) if j in indices]) > quota:
+                output += "1"
+            else: output += "0"
+        else:
+            if sum([ele for j, ele in enumerate(wvg) if j in indices]) >= quota:
+                output += "1"
+            else: output += "0"
+    return output
 
 def generalized_banzhaf(population, quota, decisivness, normalize = True, exact = EXACT, strict = STRICT):
     n = len(population)
@@ -120,11 +154,40 @@ def banzhaf(population, quota, normalize = True, exact = EXACT, strict = STRICT)
     if normalize: return make_distribution(index, exact)
     return index
 
+def banzhaf_sentiment(population, quota, sentiments, normalize = True, exact = EXACT, strict = STRICT):
+    n = len(population) 
+    results = [0]*n
+    coalitions = powerset(list(range(n)))
+    inverted_sentiments = [1-sent for sent in sentiments]
+    for coalition in coalitions:
+        weight =  coalition_weight(coalition, population)
+        if not strict:
+            if weight < quota:
+                for person, person_weight in enumerate(population):
+                    if person not in coalition:
+                        if weight + person_weight >= quota:
+                            results[person] += coalition_prob(coalition, sentiments) * coalition_prob([i for i in range(n) if (i != person) and i not in coalition], inverted_sentiments)
+
+        else:
+            if weight <= quota:
+                for person, person_weight in enumerate(population):
+                    if person not in coalition:
+                        if weight + person_weight > quota:
+                            results[person] += coalition_prob(coalition, sentiments) * coalition_prob([i for i in range(n) if (i != person) and i not in coalition], inverted_sentiments)
+    # if exact: index = [ele/sp.Rational(2**(n-1)) for ele in results]
+    # else: index = [ele/(2**(n-1)) for ele in results]
+
+    if normalize: return make_distribution(results, exact)
+    return results
+
 def shapley(population, quota, exact = EXACT, strict = STRICT):
     n = len(population) 
     Factorials = {k : math.factorial(k) for k in range(0,n)}
     results = [0]*n
     coalitions = powerset(list(range(n)))
+    # if n>15:
+    #     print("Shapley Progress:")
+    #     coalitions = tqdm.tqdm(coalitions)
     for coalition in coalitions:
         k = len(coalition)
         weight =  coalition_weight(coalition, population)
@@ -144,6 +207,46 @@ def shapley(population, quota, exact = EXACT, strict = STRICT):
     else: index = [ele/(math.factorial(n)) for ele in results]
 
     return index
+
+def is_subset_of(subset,set_):
+    for ele in subset:
+        if ele not in set_:
+            return False
+    return True
+
+def get_minimal_winning_coalitions(winning):
+    critical = []
+    for coalition in winning:
+        is_critical = True
+        for other_coalition in winning:
+            if other_coalition != coalition and is_subset_of(other_coalition, coalition):
+                is_critical = False
+        if is_critical: critical.append(coalition)
+    return critical
+
+
+def no_veto_index(population, quota, strict = STRICT):
+    n = len(population) 
+    coalitions = powerset(list(range(n)))
+    if STRICT:
+        winning_coalitions = [coalition for coalition in coalitions if coalition_weight(coalition, population) > quota]
+    else: 
+        winning_coalitions = [coalition for coalition in coalitions if coalition_weight(coalition, population) >= quota]
+    mwcs = get_minimal_winning_coalitions(winning_coalitions)
+    values = [0]*n
+
+    for mwc in mwcs:
+        for player in mwc:
+            values[player] += 1
+
+    powers = [0]*n
+    for mwc in mwcs:
+        total_value = sum(values[player] for player in mwc)
+        for player in mwc:
+            powers[player] += values[player]/sp.Rational(total_value)
+    nr_mwcs = len(mwcs)
+    return [power/sp.Rational(nr_mwcs) for power in powers]
+    
    
 def print_progress(progress, trials, msg = None):
     progress = progress + 1
@@ -153,16 +256,57 @@ def print_progress(progress, trials, msg = None):
         output += str((progress*100)/trials) + "%\r"
         print(output,end='')
     if progress == trials:
-        print("Done.    ")
+        print("Done.", msg, "                 ")
     
-def find_closest(target, candidates, p = 1, exact = EXACT):
+def find_closest(target, candidates, p = 1, exact = EXACT, return_list = False):
     min_vec = None
+    if return_list: min_vecs = []
     min_distance = len(target)
+
     for vec in candidates:
-        if distance(vec, target, p, exact) < min_distance:
+        distance_here = distance(vec, target, p, exact)
+        if return_list and (distance_here == min_distance or ((not EXACT) and math.isclose(distance_here, min_distance))):
+            min_vecs.append(vec)
+        elif distance_here < min_distance:
             min_distance = distance(vec, target, p, exact)
             min_vec = vec
+            if return_list: min_vecs = [vec]
+    if return_list: return min_vecs
     return min_vec
+
+### I tried and this version of Banzhaf seems faster for large instances - from Jamie's web app
+def numPartitions(a, iEnd, iSkip, vMin, vMax, vSum):
+    """
+    Counts subsets of a whose sum is > vMin and <= vMax, where a contains the first
+    iEnd elements of a but ignoring index iSkip, and vSum is the sum of all elements of a'.
+    """
+    if vMin >= vSum or vMax < 0: 
+        return 0
+    
+    iEnd -= 1
+    if vMin < 0 and vMax >= vSum:
+        if iSkip > iEnd:
+            iEnd += 1
+        return 2 ** iEnd
+    
+    if (iEnd == iSkip):
+        iEnd -= 1
+
+    if iEnd < 0:
+        return 1
+    x = a[iEnd]
+    vSum -= x
+    return numPartitions(a, iEnd, iSkip, vMin, vMax, vSum) + numPartitions(a, iEnd, iSkip, vMin - x, vMax - x, vSum)
+
+def banzhaf_fast(weights, threshold, exact):
+    n = len(weights)
+    totalWeight = sum(weights)
+    enoughToWin = totalWeight * threshold
+    # console.log([weights, n, 0, enoughToWin - weights[0], enoughToWin, totalWeight - weights[0]]);
+    bpiRaw = [numPartitions(weights, n, i, enoughToWin - w, enoughToWin, totalWeight - w) if w else 0 for (i,w) in enumerate(weights)]
+
+    return make_distribution(bpiRaw, exact)
+
 
 # def get_pivotal_vectors(weights, quota, exact = EXACT, invert = False, normalize = True):
 #     n = len(weights)

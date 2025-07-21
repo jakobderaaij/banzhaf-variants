@@ -3,7 +3,7 @@ from config import EXACT, STRICT
 from storage.all_wvgs import all_wvgs
 import tqdm
 
-ALL_INDICES = dict()
+
 CORRECT_NUMBERS = {0:2, 1:3, 2:6, 3:20, 4:150, 5:3_287, 6:244_158, 7:66_291_591} # from Enumeration of Threshold Functions of Eight Variables by MUROGA, TSUBOI, BAUGH
 
 
@@ -20,21 +20,7 @@ def all_ordered_wvgs(n, largest_weight):
             all_wvgs += [wvg + [weight]]
     return all_wvgs
 
-def to_function(wvg, quota, strict = STRICT):
-    '''Convert a WVG to a boolean function (as string)'''
-    output = ""
-    n = len(wvg)
-    if n not in ALL_INDICES: ALL_INDICES[n] = powerset(list(range(n)))
-    for indices in ALL_INDICES[n]:
-        if strict:
-            if sum([ele for j, ele in enumerate(wvg) if j in indices]) > quota:
-                output += "1"
-            else: output += "0"
-        else:
-            if sum([ele for j, ele in enumerate(wvg) if j in indices]) >= quota:
-                output += "1"
-            else: output += "0"
-    return output
+
 
 
 def get_equivalent_players(weights, quota, strict = STRICT):
@@ -66,7 +52,7 @@ def get_equivalent_players(weights, quota, strict = STRICT):
 
 if __name__ == '__main__':
     LOWEST_N = 1
-    HIGHEST_N = 7
+    HIGHEST_N = 6
     MAXIMUM_WEIGHTS = {1:1, 2:1, 3:2, 4:3, 5:5, 6:9, 7:20}
     for n in range(LOWEST_N, HIGHEST_N + 1):
         # Only run this if n is not in the list yet
